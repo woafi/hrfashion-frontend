@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { X, Loader2, ChevronRight, CheckCircle, Award } from "lucide-react";
+import { X, Loader2, ChevronRight, CheckCircle, Award, Clock } from "lucide-react";
 import { getToken } from "@/lib/auth-client";
 import { generateInterview, submitInterview, type Interview } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -18,6 +18,12 @@ interface InterviewModalProps {
 
 type Screen = "loading" | "questions" | "results";
 
+const DEFAULT_TIME_LIMIT_MINS = 10;
+const rawEnvLimit = process.env.NEXT_PUBLIC_INTERVIEW_TIME_LIMIT_MINS;
+const parsedLimit = rawEnvLimit ? parseInt(rawEnvLimit, 10) : NaN;
+const TIME_LIMIT_MINS = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : DEFAULT_TIME_LIMIT_MINS;
+const TOTAL_SECONDS = TIME_LIMIT_MINS * 60;
+
 export function InterviewModal({ applicationId, jobTitle, initialInterview, readOnly = false, onClose }: InterviewModalProps) {
   const queryClient = useQueryClient();
   const [interview, setInterview] = useState<Interview | null>(initialInterview || null);
@@ -26,6 +32,12 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
   const [screen, setScreen] = useState<Screen>(
     initialInterview?.status === "completed" ? "results" : initialInterview ? "questions" : "loading"
   );
+
+  const [timeLeft, setTimeLeft] = useState(TOTAL_SECONDS);
+  const startTimeRef = useRef<number | null>(null);
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  const hasAutoSubmittedRef = useRef(false);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -51,9 +63,10 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
     mutationFn: async () => {
       const token = await getToken();
       if (!token) throw new Error("No token");
+      const currentAnswers = answersRef.current;
       const formattedAnswers = interview!.questions.map(q => ({
         questionId: q.id,
-        answer: answers[q.id] || "",
+        answer: currentAnswers[q.id] || "",
       }));
       return submitInterview(interview!._id, formattedAnswers, token);
     },
@@ -65,8 +78,36 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
     },
     onError: (e: any) => {
       toast.error(e.message || "Failed to submit interview");
+      hasAutoSubmittedRef.current = false;
     },
   });
+
+  // Countdown timer for the interview questions screen
+  useEffect(() => {
+    if (screen !== "questions" || readOnly || interview?.status === "completed") {
+      return;
+    }
+
+    if (!startTimeRef.current) {
+      startTimeRef.current = Date.now();
+    }
+
+    const interval = setInterval(() => {
+      if (!startTimeRef.current) return;
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const remaining = Math.max(0, TOTAL_SECONDS - elapsed);
+      setTimeLeft(remaining);
+
+      if (remaining <= 0 && !hasAutoSubmittedRef.current) {
+        hasAutoSubmittedRef.current = true;
+        clearInterval(interval);
+        toast.warning("Time limit reached! Submitting your answers automatically...");
+        submitMutation.mutate();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [screen, readOnly, interview?.status, submitMutation]);
 
   // Auto-generate on mount if no initial interview provided
   if (screen === "loading" && !generateMutation.isPending && !generateMutation.isError) {
@@ -93,6 +134,12 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
     return "text-red-600 dark:text-red-400";
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="bg-background w-full max-w-2xl rounded-sm border border-card-border shadow-2xl flex flex-col max-h-[90vh]">
@@ -103,9 +150,26 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
             <h2 className="text-xl font-serif">AI Interview</h2>
             <p className="text-sm text-muted">{jobTitle}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-foreground/5 rounded-full transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            {screen === "questions" && !readOnly && (
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-semibold border transition-all duration-300 ${
+                  timeLeft <= 60
+                    ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/50 animate-pulse"
+                    : timeLeft <= 120
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40"
+                    : "bg-card text-foreground border-card-border"
+                }`}
+                title={`Time limit: ${TIME_LIMIT_MINS} minutes total`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>{formatTime(timeLeft)}</span>
+              </div>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-foreground/5 rounded-full transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -123,21 +187,26 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
           {/* Questions screen */}
           {screen === "questions" && currentQuestion && (
             <div className="space-y-6">
-              {/* Progress */}
+              {/* Progress & Time Info */}
               <div className="space-y-2">
-                <div className="flex justify-between text-xs text-muted">
+                <div className="flex justify-between items-center text-xs text-muted">
                   <span>Question {currentQ + 1} of {totalQ}</span>
-                  <span className={`px-2 py-0.5 rounded-full font-medium uppercase tracking-widest ${
-                    currentQuestion.category === "interpersonal"
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                  }`}>
-                    {currentQuestion.category === "interpersonal" ? "Interpersonal" : "Skill-Based"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-muted hidden sm:inline">
+                      ({TIME_LIMIT_MINS} min total limit)
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full font-medium uppercase tracking-widest text-[10px] ${
+                      currentQuestion.category === "interpersonal"
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                    }`}>
+                      {currentQuestion.category === "interpersonal" ? "Interpersonal" : "Skill-Based"}
+                    </span>
+                  </div>
                 </div>
-                <div className="w-full bg-card rounded-full h-1.5">
+                <div className="w-full bg-card rounded-full h-1.5 overflow-hidden border border-card-border/50">
                   <div
-                    className="bg-foreground h-1.5 rounded-full transition-all duration-300"
+                    className="bg-accent h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${((currentQ + 1) / totalQ) * 100}%` }}
                   />
                 </div>
@@ -150,7 +219,14 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
 
               {/* Answer */}
               <div className="space-y-1">
-                <label className="text-xs uppercase tracking-widest text-muted font-medium">Your Answer</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs uppercase tracking-widest text-muted font-medium">Your Answer</label>
+                  {timeLeft <= 60 && (
+                    <span className="text-xs text-red-500 font-medium">
+                      Less than a minute remaining!
+                    </span>
+                  )}
+                </div>
                 <textarea
                   rows={6}
                   value={answers[currentQuestion.id] || ""}
@@ -163,11 +239,14 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
               {/* Navigation dots */}
               <div className="flex justify-center gap-1.5">
                 {questions.map((_, i) => (
-                  <div
+                  <button
                     key={i}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      i === currentQ ? "bg-foreground" : answers[questions[i].id] ? "bg-muted" : "bg-card"
+                    type="button"
+                    onClick={() => setCurrentQ(i)}
+                    className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
+                      i === currentQ ? "w-5 bg-accent" : answers[questions[i].id] ? "bg-muted" : "bg-card border border-card-border"
                     }`}
+                    title={`Question ${i + 1}`}
                   />
                 ))}
               </div>
@@ -178,22 +257,22 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
           {screen === "results" && interview && (
             <div className="space-y-6">
               <div className="flex flex-col items-center py-8 gap-4">
-                <div className="w-16 h-16 rounded-full bg-card flex items-center justify-center">
-                  <Award className="w-8 h-8" />
+                <div className="w-16 h-16 rounded-full bg-card flex items-center justify-center border border-card-border">
+                  <Award className="w-8 h-8 text-accent" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm text-muted mb-2">Interview Score</p>
+                  <p className="text-xs uppercase tracking-widest text-muted mb-2 font-medium">Interview Score</p>
                   <p className={`text-6xl font-serif ${getScoreColor(interview.score ?? 0)}`}>
                     {interview.score ?? "—"}
-                    <span className="text-2xl text-muted">/100</span>
+                    <span className="text-2xl text-muted font-sans font-normal">/100</span>
                   </p>
                 </div>
               </div>
 
               {interview.feedback && (
                 <div className="p-5 bg-card rounded-sm border border-card-border space-y-2">
-                  <p className="text-xs uppercase tracking-widest text-muted font-medium">AI Feedback</p>
-                  <p className="text-sm leading-relaxed">{interview.feedback}</p>
+                  <p className="text-xs uppercase tracking-widest text-accent font-semibold">AI Feedback</p>
+                  <p className="text-sm leading-relaxed text-muted">{interview.feedback}</p>
                 </div>
               )}
 
@@ -203,16 +282,18 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
                 {interview.questions.map((q, i) => {
                   const ans = interview.answers.find(a => a.questionId === q.id);
                   return (
-                    <div key={q.id} className="p-4 border border-card-border rounded-sm space-y-2">
+                    <div key={q.id} className="p-4 border border-card-border rounded-sm space-y-2 bg-card">
                       <div className="flex items-start gap-2">
-                        <span className="text-xs text-muted flex-shrink-0 mt-0.5">Q{i + 1}</span>
+                        <span className="text-xs text-accent font-semibold flex-shrink-0 mt-0.5">Q{i + 1}</span>
                         <p className="text-sm font-medium">{q.question}</p>
                       </div>
-                      {ans?.answer && (
-                        <div className="flex items-start gap-2 pl-4">
-                          <span className="text-xs text-muted flex-shrink-0 mt-0.5">A</span>
+                      {ans?.answer ? (
+                        <div className="flex items-start gap-2 pl-4 border-l-2 border-accent/30 mt-2">
+                          <span className="text-xs text-muted flex-shrink-0 mt-0.5 font-medium">A:</span>
                           <p className="text-sm text-muted">{ans.answer}</p>
                         </div>
+                      ) : (
+                        <p className="text-xs italic text-muted pl-4">No answer provided.</p>
                       )}
                     </div>
                   );
@@ -228,8 +309,8 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
             <button
               type="button"
               onClick={() => setCurrentQ(q => Math.max(0, q - 1))}
-              disabled={currentQ === 0}
-              className="px-5 py-2.5 border border-card-border text-sm font-medium rounded-sm hover:bg-foreground/5 transition-colors disabled:opacity-40"
+              disabled={currentQ === 0 || submitMutation.isPending}
+              className="px-5 py-2.5 border border-card-border text-sm font-medium rounded-sm hover:bg-foreground/5 transition-colors disabled:opacity-40 cursor-pointer"
             >
               Back
             </button>
@@ -237,7 +318,7 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
               type="button"
               onClick={handleNext}
               disabled={isAnswerEmpty || submitMutation.isPending}
-              className="px-8 py-2.5 bg-foreground text-background text-sm font-medium rounded-sm hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50 min-w-[140px] justify-center"
+              className="px-8 py-2.5 bg-foreground text-background text-sm font-medium rounded-sm hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50 min-w-[140px] justify-center cursor-pointer"
             >
               {submitMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -254,7 +335,7 @@ export function InterviewModal({ applicationId, jobTitle, initialInterview, read
           <div className="p-6 border-t border-card-border bg-card flex justify-end flex-shrink-0">
             <button
               onClick={onClose}
-              className="px-8 py-2.5 bg-foreground text-background text-sm font-medium rounded-sm hover:opacity-90 transition-opacity"
+              className="px-8 py-2.5 bg-foreground text-background text-sm font-medium rounded-sm hover:opacity-90 transition-opacity cursor-pointer"
             >
               Done
             </button>
