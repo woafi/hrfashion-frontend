@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { Star, Eye } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface ProductCardProps {
   _id: string;
@@ -20,7 +21,7 @@ function StarRating({ rating }: { rating: number }) {
       {[1, 2, 3, 4, 5].map((star) => (
         <Star
           key={star}
-          className={`w-3 h-3 ${
+          className={`w-3 h-3 transition-colors duration-200 ${
             star <= Math.round(rating)
               ? "fill-accent text-accent"
               : "fill-transparent text-muted"
@@ -42,26 +43,36 @@ export function ProductCard({
   featured,
 }: ProductCardProps) {
   return (
-    <div className="group flex flex-col bg-card rounded-sm border border-card-border overflow-hidden hover:shadow-xl transition-shadow duration-[600ms]">
+    <motion.div
+      whileHover={{ y: -8, scale: 1.015 }}
+      whileTap={{ scale: 0.99 }}
+      transition={{ type: "spring", stiffness: 300, damping: 22 }}
+      className="group flex flex-col bg-card rounded-sm border border-card-border overflow-hidden card-glow"
+    >
       {/* Image container */}
       <Link href={`/collections/${_id}`} className="block relative aspect-[3/4] bg-background overflow-hidden">
         {/* Featured ribbon */}
         {featured && (
-          <div className="absolute top-3 left-0 z-10 bg-accent text-pure-white text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-r-sm shadow-sm">
+          <motion.div
+            initial={{ x: -40, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="absolute top-3 left-0 z-10 bg-accent text-pure-white text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-r-sm shadow-sm"
+          >
             Featured
-          </div>
+          </motion.div>
         )}
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={images[0] || "https://images.unsplash.com/photo-1591561954557-26941169b49e?auto=format&fit=crop&q=80&w=800"}
           alt={title}
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-[600ms] ease-out transform-gpu"
+          className="w-full h-full object-cover object-center group-hover:scale-108 transition-transform duration-700 ease-out transform-gpu"
         />
 
-        {/* Hover overlay with View Details CTA */}
-        <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-[600ms] flex items-end justify-center pb-6">
-          <span className="px-5 py-2.5 bg-pure-white text-ink text-xs font-semibold uppercase tracking-widest rounded-sm transform translate-y-3 group-hover:translate-y-0 duration-[600ms] hover:opacity-90 transition-opacity">
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end justify-center pb-6">
+          <span className="px-5 py-2.5 bg-pure-white text-ink text-xs font-semibold uppercase tracking-widest rounded-sm flex items-center gap-1.5 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+            <Eye className="w-3.5 h-3.5" />
             View Details
           </span>
         </div>
@@ -70,15 +81,22 @@ export function ProductCard({
       {/* Info */}
       <div className="p-4 flex flex-col flex-1">
         <div className="mb-1.5">
-          <h3 className="font-serif text-base leading-snug line-clamp-1 text-foreground">{title}</h3>
+          <h3 className="font-serif text-base leading-snug line-clamp-1 text-foreground group-hover:text-accent transition-colors duration-200">
+            {title}
+          </h3>
           <p className="text-xs text-muted mt-0.5 line-clamp-1">{shortDescription}</p>
         </div>
 
         <div className="mt-3 pt-3 border-t border-card-border flex items-center justify-between">
           <StarRating rating={rating} />
-          <span className="text-sm font-semibold text-accent">${price}</span>
+          <motion.span
+            whileHover={{ scale: 1.1 }}
+            className="text-sm font-semibold text-accent"
+          >
+            ${price}
+          </motion.span>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -51,7 +51,7 @@ async function main() {
   if (user.role !== "admin") {
     await db
       .collection("user")
-      .updateOne({ _id: user._id }, { $set: { role: "admin" } });
+      .updateOne({ _id: user._id as any }, { $set: { role: "admin" } });
     console.log("set role=admin on user");
   }
 

@@ -6,10 +6,11 @@ import { QUERY_KEYS } from "@/lib/queryKeys";
 import Link from "next/link";
 import {
   Factory, Package, Scissors, ShieldCheck, Truck, Globe,
-  PenTool, CheckCircle, Wrench, Star, Layers, Box,
+  PenTool, CheckCircle, Wrench, Star, Layers, Box, ArrowRight,
   type LucideProps,
 } from "lucide-react";
 import type { ElementType } from "react";
+import { motion } from "framer-motion";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/PageMotion";
 
 const ICON_MAP: Record<string, ElementType<LucideProps>> = {
@@ -46,6 +47,7 @@ export function Services() {
   return (
     <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <ScrollReveal className="text-center mb-16">
+        <p className="text-xs uppercase tracking-[0.3em] text-accent mb-3">What We Offer</p>
         <h2 className="text-3xl font-serif mb-4">Our Services</h2>
         <p className="text-muted max-w-xl mx-auto">
           Beyond retail, HR Fashion is a premier manufacturing partner. We offer comprehensive B2B solutions for the modern garment industry.
@@ -55,24 +57,52 @@ export function Services() {
       <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
         {items.map((service, idx) => (
           <StaggerItem key={"_id" in service ? String(service._id) : idx}>
-            <div className="group bg-card p-8 rounded-sm border border-card-border overflow-hidden hover:shadow-xl transition-shadow duration-[600ms] h-full">
-              <div className="w-12 h-12 bg-accent text-pure-white flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-[600ms] ease-out transform-gpu rounded-sm">
+            <motion.div
+              whileHover={{ y: -8, scale: 1.02 }}
+              transition={{ type: "spring", stiffness: 300, damping: 22 }}
+              className="group bg-card p-8 rounded-sm border border-card-border overflow-hidden card-glow h-full relative"
+            >
+              {/* Animated bottom accent bar */}
+              <motion.div
+                className="absolute bottom-0 left-0 h-0.5 bg-accent origin-left"
+                initial={{ scaleX: 0 }}
+                whileHover={{ scaleX: 1 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              />
+
+              <motion.div
+                whileHover={{ scale: 1.15, rotate: 8 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                className="w-12 h-12 bg-accent text-pure-white flex items-center justify-center mb-6 rounded-sm shadow-md"
+              >
                 <ServiceIcon name={service.icon} />
-              </div>
-              <h3 className="font-medium text-lg mb-3">{service.title}</h3>
+              </motion.div>
+
+              <h3 className="font-medium text-lg mb-3 group-hover:text-accent transition-colors duration-200">
+                {service.title}
+              </h3>
               <p className="text-sm text-muted leading-relaxed">{service.description}</p>
-            </div>
+
+              <motion.div
+                className="mt-6 flex items-center gap-1.5 text-xs font-semibold text-muted opacity-0 group-hover:opacity-100 group-hover:text-accent transition-all duration-300"
+              >
+                Learn more <ArrowRight className="w-3.5 h-3.5" />
+              </motion.div>
+            </motion.div>
           </StaggerItem>
         ))}
       </StaggerContainer>
 
       <ScrollReveal className="text-center">
-        <Link
-          href="/contact"
-          className="inline-flex items-center justify-center px-8 py-4 border border-card-border text-sm font-medium uppercase tracking-widest hover:opacity-90 transition-opacity rounded-sm"
-        >
-          Inquire for Manufacturing
-        </Link>
+        <motion.div whileHover={{ scale: 1.04, y: -2 }} whileTap={{ scale: 0.97 }}>
+          <Link
+            href="/contact"
+            className="btn-shimmer inline-flex items-center gap-2 justify-center px-8 py-4 border border-card-border text-sm font-medium uppercase tracking-widest hover:border-accent hover:text-accent transition-all duration-300 rounded-sm"
+          >
+            Inquire for Manufacturing
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </motion.div>
       </ScrollReveal>
     </section>
   );

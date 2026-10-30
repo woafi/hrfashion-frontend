@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import { useSession, getToken } from "@/lib/auth-client";
-import { Star, Heart, Ruler, Truck, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Star, Heart, Ruler, Truck, Loader2, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,16 +11,19 @@ import { fetchWishlist, addToWishlist, removeFromWishlist } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import type { Product } from "@/lib/api";
+import { PageMotion } from "@/components/ui/PageMotion";
 
 const slideVariants = {
   enter: (direction: number) => ({
     x: direction > 0 ? "100%" : "-100%",
     opacity: 0,
+    scale: 0.96,
   }),
-  center: { x: 0, opacity: 1 },
+  center: { x: 0, opacity: 1, scale: 1 },
   exit: (direction: number) => ({
     x: direction < 0 ? "100%" : "-100%",
     opacity: 0,
+    scale: 0.96,
   }),
 };
 
@@ -56,24 +59,26 @@ function ImageCarousel({ images, title }: { images: string[]; title: string }) {
       {/* Thumbnail strip */}
       <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-y-auto md:max-h-[700px] md:w-20 flex-shrink-0 pb-1 md:pb-0">
         {images.map((img, idx) => (
-          <button
+          <motion.button
             key={idx}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => jumpTo(idx)}
-            className={`relative aspect-[3/4] w-16 md:w-full flex-shrink-0 rounded-sm overflow-hidden border-2 transition-all duration-500 ${
+            className={`relative aspect-[3/4] w-16 md:w-full flex-shrink-0 rounded-sm overflow-hidden border-2 transition-all duration-300 ${
               activeImage === idx
-                ? "border-foreground"
-                : "border-transparent opacity-50 hover:opacity-80"
+                ? "border-accent ring-2 ring-accent/30"
+                : "border-transparent opacity-60 hover:opacity-100"
             }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={img} alt="" className="w-full h-full object-cover" />
-          </button>
+          </motion.button>
         ))}
       </div>
 
       {/* Main carousel */}
       <div
-        className="flex-1 aspect-[3/4] md:aspect-auto md:h-[700px] bg-neutral-100 dark:bg-neutral-900 rounded-sm overflow-hidden relative select-none"
+        className="flex-1 aspect-[3/4] md:aspect-auto md:h-[700px] bg-card border border-card-border rounded-sm overflow-hidden relative select-none card-glow"
         onTouchStart={onDragStart}
         onTouchEnd={onDragEnd}
       >
@@ -85,7 +90,7 @@ function ImageCarousel({ images, title }: { images: string[]; title: string }) {
             initial="enter"
             animate="center"
             exit="exit"
-            transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+            transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
             className="absolute inset-0"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -101,30 +106,34 @@ function ImageCarousel({ images, title }: { images: string[]; title: string }) {
         {/* Arrows — only if multiple images */}
         {images.length > 1 && (
           <>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => paginate(-1)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-background/80 backdrop-blur-sm rounded-full border border-neutral-200 dark:border-neutral-700 hover:bg-background transition-colors shadow-sm"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 bg-background/85 backdrop-blur-md rounded-full border border-card-border hover:bg-background transition-colors shadow-lg"
               aria-label="Previous image"
             >
               <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => paginate(1)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-background/80 backdrop-blur-sm rounded-full border border-neutral-200 dark:border-neutral-700 hover:bg-background transition-colors shadow-sm"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 bg-background/85 backdrop-blur-md rounded-full border border-card-border hover:bg-background transition-colors shadow-lg"
               aria-label="Next image"
             >
               <ChevronRight className="w-4 h-4" />
-            </button>
+            </motion.button>
 
             {/* Dot indicators */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-1.5">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex gap-2">
               {images.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => jumpTo(idx)}
-                  className={`rounded-full transition-all duration-500 ${
+                  className={`rounded-full transition-all duration-300 ${
                     activeImage === idx
-                      ? "w-4 h-1.5 bg-foreground"
+                      ? "w-6 h-1.5 bg-accent"
                       : "w-1.5 h-1.5 bg-foreground/30 hover:bg-foreground/60"
                   }`}
                   aria-label={`Go to image ${idx + 1}`}
@@ -179,117 +188,157 @@ export function ProductDetailsClient({ product }: { product: Product }) {
     wishlistMutation.mutate(isInWishlist ? "remove" : "add");
   };
 
+  const handleAddToBag = () => {
+    if (product.sizes?.length && !selectedSize) {
+      toast.error("Please select a size first");
+      return;
+    }
+    toast.success("Added to shopping bag!");
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-neutral-500 mb-8">
-        <Link href="/" className="hover:text-foreground transition-colors">Home</Link>
-        <span>/</span>
-        <Link href="/collections" className="hover:text-foreground transition-colors">Collections</Link>
-        <span>/</span>
-        <span className="text-foreground">{product.category}</span>
-      </div>
+    <PageMotion>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-24">
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted mb-8">
+          <Link href="/" className="hover:text-accent transition-colors">Home</Link>
+          <span>/</span>
+          <Link href="/collections" className="hover:text-accent transition-colors">Collections</Link>
+          <span>/</span>
+          <span className="text-foreground font-medium">{product.category}</span>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16 mb-24">
-        {/* Gallery */}
-        <ImageCarousel images={product.images} title={product.title} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16 mb-24">
+          {/* Gallery */}
+          <ImageCarousel images={product.images} title={product.title} />
 
-        {/* Info */}
-        <div className="flex flex-col">
-          <div className="flex justify-between items-start mb-4">
-            <h1 className="text-3xl md:text-4xl font-serif">{product.title}</h1>
-            <button
-              onClick={handleWishlist}
-              disabled={wishlistMutation.isPending}
-              className={`p-2 border rounded-full transition-colors flex-shrink-0 ${
-                isInWishlist
-                  ? "border-foreground bg-foreground text-background hover:bg-background hover:text-foreground"
-                  : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-900"
-              }`}
-              title={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
-            >
-              {wishlistMutation.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Heart className={`w-5 h-5 ${isInWishlist ? "fill-current" : ""}`} />
+          {/* Info */}
+          <div className="flex flex-col">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-accent mb-2 block">
+                  {product.category}
+                </span>
+                <h1 className="text-3xl md:text-4xl font-serif">{product.title}</h1>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleWishlist}
+                disabled={wishlistMutation.isPending}
+                className={`p-3 border rounded-full transition-colors flex-shrink-0 cursor-pointer ${
+                  isInWishlist
+                    ? "border-accent bg-accent text-pure-white"
+                    : "border-card-border hover:border-accent hover:text-accent bg-card"
+                }`}
+                title={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
+              >
+                {wishlistMutation.isPending ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Heart className={`w-5 h-5 ${isInWishlist ? "fill-current" : ""}`} />
+                )}
+              </motion.button>
+            </div>
+
+            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-card-border">
+              <span className="text-2xl font-serif font-medium text-accent">${product.price}</span>
+              <div className="flex items-center gap-1.5 text-muted bg-card px-2.5 py-1 rounded-full border border-card-border">
+                <Star className="w-3.5 h-3.5 fill-accent text-accent" />
+                <span className="text-xs font-medium">{product.rating.toFixed(1)}</span>
+              </div>
+              {product.featured && (
+                <span className="text-[10px] font-semibold uppercase tracking-widest bg-accent/10 text-accent px-2.5 py-1 rounded-full border border-accent/20">
+                  Featured
+                </span>
               )}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4 mb-6">
-            <span className="text-xl font-medium">${product.price}</span>
-            <div className="flex items-center gap-1 text-neutral-500">
-              <Star className="w-4 h-4 fill-current" />
-              <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
             </div>
-          </div>
 
-          <p className="text-neutral-600 dark:text-neutral-400 mb-8 leading-relaxed whitespace-pre-wrap">
-            {product.fullDescription}
-          </p>
+            <p className="text-muted mb-8 leading-relaxed whitespace-pre-wrap text-sm">
+              {product.fullDescription || product.shortDescription}
+            </p>
 
-          {/* Colors */}
-          <div className="mb-6">
-            <div className="flex justify-between text-sm mb-3">
-              <span className="uppercase tracking-widest font-medium">Color</span>
-              <span className="text-neutral-500">{selectedColor || "Select color"}</span>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {product.colors.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setSelectedColor(color)}
-                  className={`px-4 py-2 border text-sm rounded-sm transition-colors ${
-                    selectedColor === color
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400"
-                  }`}
-                >
-                  {color}
-                </button>
-              ))}
-            </div>
-          </div>
+            {/* Colors */}
+            {product.colors && product.colors.length > 0 && (
+              <div className="mb-6">
+                <div className="flex justify-between text-xs uppercase tracking-widest font-medium mb-3">
+                  <span>Color</span>
+                  <span className="text-muted">{selectedColor || "Select a color"}</span>
+                </div>
+                <div className="flex flex-wrap gap-2.5">
+                  {product.colors.map((color) => (
+                    <motion.button
+                      key={color}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSelectedColor(color)}
+                      className={`px-4 py-2 border text-xs font-medium uppercase tracking-wider rounded-sm transition-all duration-200 cursor-pointer ${
+                        selectedColor === color
+                          ? "border-accent bg-accent text-pure-white shadow-sm"
+                          : "border-card-border bg-card hover:border-accent/50 text-foreground"
+                      }`}
+                    >
+                      {color}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Sizes */}
-          <div className="mb-10">
-            <div className="flex justify-between text-sm mb-3">
-              <span className="uppercase tracking-widest font-medium">Size</span>
-              <button className="text-neutral-500 hover:text-foreground flex items-center gap-1 underline underline-offset-4">
-                <Ruler className="w-3 h-3" /> Size Guide
-              </button>
-            </div>
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-              {product.sizes.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => setSelectedSize(size)}
-                  className={`py-3 border text-sm rounded-sm transition-colors ${
-                    selectedSize === size
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-400"
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
+            {/* Sizes */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div className="mb-10">
+                <div className="flex justify-between text-xs uppercase tracking-widest font-medium mb-3">
+                  <span>Size</span>
+                  <button className="text-muted hover:text-accent flex items-center gap-1 transition-colors">
+                    <Ruler className="w-3.5 h-3.5" /> Size Guide
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2.5">
+                  {product.sizes.map((size) => (
+                    <motion.button
+                      key={size}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSelectedSize(size)}
+                      className={`py-3 border text-xs font-medium uppercase tracking-wider rounded-sm transition-all duration-200 cursor-pointer ${
+                        selectedSize === size
+                          ? "border-accent bg-accent text-pure-white shadow-sm"
+                          : "border-card-border bg-card hover:border-accent/50 text-foreground"
+                      }`}
+                    >
+                      {size}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          <button className="w-full py-4 bg-foreground text-background font-medium uppercase tracking-widest text-sm rounded-sm hover:opacity-90 transition-opacity mb-4">
-            Add to Bag
-          </button>
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleAddToBag}
+              className="btn-shimmer w-full py-4 bg-foreground text-background font-medium uppercase tracking-widest text-sm rounded-sm hover:opacity-90 transition-opacity mb-4 flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              Add to Bag
+            </motion.button>
 
-          <div className="flex items-center justify-center gap-2 text-sm text-neutral-500 py-4 border-t border-neutral-200 dark:border-neutral-800 mt-6">
-            <Truck className="w-4 h-4" /> Free shipping on orders over $200
+            <motion.div
+              whileHover={{ y: -2 }}
+              className="flex items-center justify-center gap-2.5 text-xs text-muted py-4 border-t border-card-border mt-4"
+            >
+              <Truck className="w-4 h-4 text-accent" />
+              Free shipping on orders over $200 &bull; 30-day hassle-free returns
+            </motion.div>
           </div>
         </div>
-      </div>
 
-      {/* Reviews */}
-      <div className="mb-24 pt-16 border-t border-neutral-200 dark:border-neutral-800">
-        <ProductReviews productId={product._id} />
+        {/* Reviews */}
+        <div className="mb-24 pt-16 border-t border-card-border">
+          <ProductReviews productId={product._id} />
+        </div>
       </div>
-    </div>
+    </PageMotion>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus, X, Loader2, Upload, ImageIcon } from "lucide-react";
@@ -29,6 +29,14 @@ export default function AdminProductsPage() {
     queryKey: QUERY_KEYS.admin.products(),
     queryFn: () => fetchProducts("limit=200"),
   });
+
+  // Only offer categories that already exist in the catalog, so newly created
+  // products stay selectable from the storefront's category filter.
+  const categoryOptions = useMemo(() => {
+    const set = new Set((data?.products ?? []).map((prod) => prod.category).filter(Boolean));
+    if (modal.product.category) set.add(modal.product.category);
+    return [...set].sort();
+  }, [data, modal.product.category]);
 
   const withToken = async (fn: (t: string) => Promise<any>) => {
     const token = await getToken();
@@ -175,10 +183,9 @@ export default function AdminProductsPage() {
                 <label className="text-xs uppercase tracking-widest font-medium text-muted">Category</label>
                 <select value={p.category || ""} onChange={(e) => setField("category", e.target.value)} className="w-full px-4 py-2.5 bg-card border border-card-border rounded-sm text-sm focus:outline-none focus:border-foreground">
                   <option value="" disabled>Select category...</option>
-                  <option value="Women's Clothing">Women's Clothing</option>
-                  <option value="Men's Clothing">Men's Clothing</option>
-                  <option value="Accessories">Accessories</option>
-                  <option value="New Arrivals">New Arrivals</option>
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
 

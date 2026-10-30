@@ -68,3 +68,99 @@ body {
 .no-theme-transition * {
   transition: none !important;
 }
+
+/* ─── Custom cursor glow (subtle) ────────────────────────── */
+@keyframes cursor-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* ─── Magnetic button shimmer ────────────────────────────── */
+@keyframes shimmer {
+  0% { transform: translateX(-100%) skewX(-12deg); }
+  100% { transform: translateX(200%) skewX(-12deg); }
+}
+
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transform: translateX(-100%) skewX(-12deg);
+  transition: none;
+}
+.btn-shimmer:hover::after {
+  animation: shimmer 0.7s ease-out forwards;
+}
+
+/* ─── Underline slide animation for nav links ────────────── */
+.nav-link-animated {
+  position: relative;
+}
+.nav-link-animated::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.nav-link-animated:hover::after,
+.nav-link-animated.active::after {
+  width: 100%;
+}
+
+/* ─── Card glow on hover ─────────────────────────────────── */
+.card-glow {
+  transition: box-shadow 0.4s ease, transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.card-glow:hover {
+  box-shadow: 0 20px 60px -12px rgba(110, 30, 30, 0.18), 0 8px 24px -8px rgba(0,0,0,0.12);
+}
+
+/* ─── Input focus ring ───────────────────────────────────── */
+.input-focus-ring {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-focus-ring:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(110, 30, 30, 0.12);
+}
+
+/* ─── Floating label animation ───────────────────────────── */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.float-animation {
+  animation: float-y 4s ease-in-out infinite;
+}
+
+/* ─── Gradient text ──────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--foreground) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Scroll progress indicator ─────────────────────────── */
+#scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 9999;
+  transform-origin: left;
+  transition: none;
+}
