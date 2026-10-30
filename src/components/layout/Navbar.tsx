@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useSession, signOut } from "@/lib/auth-client";
+import { useSession, signOut, getToken } from "@/lib/auth-client";
 import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Menu, X, LayoutDashboard, LogOut, Sun, Moon } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut, Sun, Moon, Heart } from "lucide-react";
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion";
 import { ScrollProgressBar } from "@/components/ui/PageMotion";
+import { useQuery } from "@tanstack/react-query";
+import { fetchWishlist } from "@/lib/api";
+import { QUERY_KEYS } from "@/lib/queryKeys";
 
 function ThemeToggle({ className = "" }: { className?: string }) {
   const { theme, setTheme } = useTheme();
@@ -20,7 +23,7 @@ function ThemeToggle({ className = "" }: { className?: string }) {
       whileTap={{ scale: 0.9 }}
       transition={{ type: "spring", stiffness: 400, damping: 20 }}
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className={`p-2 rounded-full hover:bg-foreground/10 transition-colors ${className}`}
+      className={`p-2 rounded-full hover:bg-foreground/10 transition-colors cursor-pointer ${className}`}
       aria-label="Toggle theme"
     >
       <AnimatePresence mode="wait" initial={false}>
@@ -35,6 +38,48 @@ function ThemeToggle({ className = "" }: { className?: string }) {
         )}
       </AnimatePresence>
     </motion.button>
+  );
+}
+
+function WishlistButton({ className = "" }: { className?: string }) {
+  const { data: session } = useSession();
+  const { data: wishlistData } = useQuery({
+    queryKey: QUERY_KEYS.wishlist(),
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) return { items: [] };
+      try {
+        return await fetchWishlist(token);
+      } catch {
+        return { items: [] };
+      }
+    },
+    enabled: !!session?.user,
+  });
+
+  const count = wishlistData?.items?.length || 0;
+
+  return (
+    <Link href="/wishlist" aria-label="View Wishlist">
+      <motion.div
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+        className={`relative p-2 rounded-full hover:bg-foreground/10 transition-colors cursor-pointer text-foreground ${className}`}
+        title="Wishlist"
+      >
+        <Heart className="w-4 h-4" />
+        {count > 0 && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold text-pure-white bg-accent rounded-full shadow-sm"
+          >
+            {count > 9 ? "9+" : count}
+          </motion.span>
+        )}
+      </motion.div>
+    </Link>
   );
 }
 
@@ -54,6 +99,21 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { scrollY } = useScroll();
+
+  const { data: wishlistData } = useQuery({
+    queryKey: QUERY_KEYS.wishlist(),
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) return { items: [] };
+      try {
+        return await fetchWishlist(token);
+      } catch {
+        return { items: [] };
+      }
+    },
+    enabled: !!session?.user,
+  });
+  const wishlistCount = wishlistData?.items?.length || 0;
 
   useMotionValueEvent(scrollY, "change", (y) => {
     setScrolled(y > 20);
@@ -141,15 +201,16 @@ export function Navbar() {
               })}
             </div>
 
-            <div className="hidden md:flex items-center space-x-2 text-sm">
+            <div className="hidden md:flex items-center space-x-1.5 text-sm">
+              <WishlistButton />
               <ThemeToggle />
               {session ? (
-                <div className="relative" ref={dropdownRef}>
+                <div className="relative ml-2" ref={dropdownRef}>
                   <motion.button
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setIsDropdownOpen((prev) => !prev)}
-                    className="flex items-center gap-1 pl-1 pr-3 py-1 rounded-full bg-card border border-card-border focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background"
+                    className="flex items-center gap-1 pl-1 pr-3 py-1 rounded-full bg-card border border-card-border focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background cursor-pointer"
                   >
                     <div className="w-8 h-8 flex items-center justify-center rounded-full overflow-hidden text-xs font-medium uppercase">
                       {session.user.image ? (
@@ -188,7 +249,7 @@ export function Navbar() {
                             )}
                           </div>
                           <div className="py-1 border-t border-card-border">
-                            <button onClick={handleSignOut} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+                            <button onClick={handleSignOut} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer">
                               <LogOut className="w-4 h-4" />
                               Log Out
                             </button>
@@ -217,11 +278,13 @@ export function Navbar() {
 
             {/* Mobile menu button */}
             <div className="md:hidden flex items-center gap-1">
+              <WishlistButton />
               <ThemeToggle />
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={toggleMenu}
-                className="p-2 text-foreground"
+                className="p-2 text-foreground cursor-pointer"
+                aria-label="Toggle menu"
               >
                 <AnimatePresence mode="wait" initial={false}>
                   {isOpen ? (
@@ -270,6 +333,30 @@ export function Navbar() {
                   );
                 })}
 
+                <motion.div
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: NAV_LINKS.length * 0.06, duration: 0.3, ease: "easeOut" }}
+                >
+                  <Link
+                    href="/wishlist"
+                    onClick={toggleMenu}
+                    className={`py-3 text-lg border-b border-card-border/50 flex items-center justify-between ${
+                      pathname === "/wishlist" ? "text-accent font-semibold" : "text-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-accent" />
+                      Wishlist
+                    </span>
+                    {wishlistCount > 0 && (
+                      <span className="px-2 py-0.5 text-xs bg-accent text-pure-white rounded-full font-semibold">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </Link>
+                </motion.div>
+
                 <div className="pt-4 border-t border-card-border flex flex-col gap-4 mt-2">
                   {session ? (
                     <div className="flex flex-col items-center gap-4">
@@ -298,7 +385,7 @@ export function Navbar() {
                             Dashboard
                           </Link>
                         )}
-                        <button onClick={() => { toggleMenu(); handleSignOut(); }} className="flex items-center justify-center gap-2 w-full py-3 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 rounded-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+                        <button onClick={() => { toggleMenu(); handleSignOut(); }} className="flex items-center justify-center gap-2 w-full py-3 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 rounded-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer">
                           <LogOut className="w-4 h-4" />
                           Log Out
                         </button>
