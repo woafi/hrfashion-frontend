@@ -1,5 +1,7 @@
 "use client";
 
+import { uploadImage } from "@/lib/upload";
+
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -82,13 +84,8 @@ export default function AdminTeamPage() {
     setIsUploading(true);
     const uploadToast = toast.loading("Uploading image...");
     try {
-      const API_KEY = process.env.NEXT_PUBLIC_IMAGE_UPLOAD_API;
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, { method: "POST", body: formData });
-      const data = await res.json();
-      if (!data.success) throw new Error("Image upload failed");
-      setModal((m) => ({ ...m, member: { ...m.member, image: data.data.url } }));
+      const uploadedUrl = await uploadImage(file);
+      setModal((m) => ({ ...m, member: { ...m.member, image: uploadedUrl } }));
       toast.success("Image uploaded");
     } catch (err: any) {
       toast.error(err.message || "Upload failed");

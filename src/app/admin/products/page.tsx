@@ -1,5 +1,7 @@
 "use client";
 
+import { uploadImage } from "@/lib/upload";
+
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -54,19 +56,7 @@ export default function AdminProductsPage() {
     setIsUploading(true);
     const uploadToast = toast.loading("Uploading images...");
     try {
-      const API_KEY = process.env.NEXT_PUBLIC_IMAGE_UPLOAD_API;
-      const uploadPromises = Array.from(files).map(async (file) => {
-        if (file.size > 5 * 1024 * 1024) throw new Error(`${file.name} exceeds the 5MB limit.`);
-        const formData = new FormData();
-        formData.append("image", file);
-        const res = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(`Failed to upload ${file.name}`);
-        return data.data.url as string;
-      });
+      const uploadPromises = Array.from(files).map((file) => uploadImage(file));
       const uploaded = await Promise.all(uploadPromises);
       setImageUrls((prev) => [...prev, ...uploaded]);
     } catch (err) {

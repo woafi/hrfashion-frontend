@@ -5,6 +5,7 @@ import { Loader2, Upload, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useSession, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { uploadImage } from "@/lib/upload";
 
 export default function SettingsPage() {
   const { data: session } = useSession();
@@ -25,38 +26,38 @@ export default function SettingsPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File exceeds the 5MB limit.");
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose a valid image file (JPEG, PNG, WebP).");
+      e.target.value = "";
       return;
     }
-    
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File exceeds the 5MB size limit.");
+      e.target.value = "";
+      return;
+    }
+
     setIsUploading(true);
-    const uploadToast = toast.loading("Uploading image...");
+    const toastId = toast.loading("Uploading image...");
+
     try {
-      const API_KEY = process.env.NEXT_PUBLIC_IMAGE_UPLOAD_API;
-      const formData = new FormData();
-      formData.append("image", file);
-      
-      const res = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      
-      if (!data.success) throw new Error("Failed to upload image");
-      
-      const uploadedUrl = data.data.url;
-      setAvatar(uploadedUrl);
-      
+      const uploadedUrl = await uploadImage(file);
+
+      // Persist to user profile
       const { error } = await authClient.updateUser({ image: uploadedUrl });
-      if (error) throw new Error(error.message || "Failed to update profile image");
-      
-      toast.success("Profile image updated");
+      if (error) {
+        throw new Error(error.message || "Failed to update profile image in session.");
+      }
+
+      setAvatar(uploadedUrl);
+      toast.success("Profile image updated successfully!", { id: toastId });
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "Image upload failed.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Image upload failed. Please try again.";
+      toast.error(message, { id: toastId });
     } finally {
-      toast.dismiss(uploadToast);
       setIsUploading(false);
       e.target.value = "";
     }
@@ -76,8 +77,8 @@ export default function SettingsPage() {
         toast.success("Profile updated successfully");
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsProfileLoading(false);
     }
@@ -99,8 +100,8 @@ export default function SettingsPage() {
         setCurrentPassword("");
         setNewPassword("");
       }
-    } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsPasswordLoading(false);
     }
@@ -143,6 +144,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-4 mt-2">
                 <div className="w-16 h-16 rounded-full overflow-hidden bg-card border border-card-border flex-shrink-0">
                   {avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-muted font-serif text-2xl">
@@ -155,7 +157,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className="flex items-center justify-center gap-2 px-4 py-2 border border-card-border text-xs font-medium uppercase tracking-widest rounded-sm hover:bg-foreground/5 transition-colors disabled:opacity-50 w-full sm:w-auto"
+                    className="flex items-center justify-center gap-2 px-4 py-2 border border-card-border text-xs font-medium uppercase tracking-widest rounded-sm hover:bg-foreground/5 transition-colors disabled:opacity-50 w-full sm:w-auto cursor-pointer"
                   >
                     {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     {isUploading ? "Uploading..." : "Upload New Image"}
@@ -175,7 +177,7 @@ export default function SettingsPage() {
             <button 
               type="submit"
               disabled={isProfileLoading}
-              className="px-8 py-3 bg-foreground text-background text-sm font-medium uppercase tracking-widest rounded-sm hover:opacity-90 transition-opacity flex items-center justify-center min-w-[160px]"
+              className="px-8 py-3 bg-foreground text-background text-sm font-medium uppercase tracking-widest rounded-sm hover:opacity-90 transition-opacity flex items-center justify-center min-w-[160px] cursor-pointer"
             >
               {isProfileLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
             </button>
@@ -201,7 +203,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors p-1 cursor-pointer"
                 >
                   {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -221,7 +223,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors p-1 cursor-pointer"
                 >
                   {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -231,7 +233,7 @@ export default function SettingsPage() {
             <button 
               type="submit"
               disabled={isPasswordLoading || !currentPassword || !newPassword}
-              className="px-8 py-3 border border-card-border text-sm font-medium uppercase tracking-widest rounded-sm hover:bg-foreground/5 transition-colors flex items-center justify-center min-w-[180px]"
+              className="px-8 py-3 border border-card-border text-sm font-medium uppercase tracking-widest rounded-sm hover:bg-foreground/5 transition-colors flex items-center justify-center min-w-[180px] cursor-pointer"
             >
               {isPasswordLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Update Password"}
             </button>
