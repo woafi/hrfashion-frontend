@@ -26,19 +26,33 @@ export default function AdminProductsPage() {
   const [sizesRaw, setSizesRaw] = useState("");
   const [colorsRaw, setColorsRaw] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const productParams = useMemo(() => {
+    const params = new URLSearchParams({ limit: "200", sortBy, sortOrder });
+    if (categoryFilter) params.set("category", categoryFilter);
+    return params.toString();
+  }, [categoryFilter, sortBy, sortOrder]);
 
   const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.admin.products(),
-    queryFn: () => fetchProducts("limit=200"),
+    queryKey: QUERY_KEYS.admin.products(productParams),
+    queryFn: () => fetchProducts(productParams),
   });
 
-  // Only offer categories that already exist in the catalog, so newly created
-  // products stay selectable from the storefront's category filter.
+  // Keep filter choices available even after the product list has been narrowed.
+  const { data: catalog } = useQuery({
+    queryKey: QUERY_KEYS.products("limit=200"),
+    queryFn: () => fetchProducts("limit=200"),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const categoryOptions = useMemo(() => {
-    const set = new Set((data?.products ?? []).map((prod) => prod.category).filter(Boolean));
+    const set = new Set((catalog?.products ?? []).map((prod) => prod.category).filter(Boolean));
     if (modal.product.category) set.add(modal.product.category);
     return [...set].sort();
-  }, [data, modal.product.category]);
+  }, [catalog, modal.product.category]);
 
   const withToken = async (fn: (t: string) => Promise<any>) => {
     const token = await getToken();
@@ -112,14 +126,31 @@ export default function AdminProductsPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-serif mb-1">Products</h1>
           <p className="text-muted text-sm">{data?.total ?? 0} total products</p>
         </div>
-        <button onClick={() => openModal()} className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background text-sm font-medium uppercase tracking-widest rounded-sm hover:opacity-90 transition-opacity">
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2.5 bg-card border border-card-border rounded-sm text-sm focus:outline-none focus:border-foreground">
+            <option value="">All Categories</option>
+            {categoryOptions.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="px-3 py-2.5 bg-card border border-card-border rounded-sm text-sm focus:outline-none focus:border-foreground">
+            <option value="createdAt">Sort by: Date</option>
+            <option value="title">Sort by: Title</option>
+            <option value="price">Sort by: Price</option>
+            <option value="stock">Sort by: Stock</option>
+            <option value="rating">Sort by: Rating</option>
+          </select>
+          <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")} className="px-3 py-2.5 bg-card border border-card-border rounded-sm text-sm focus:outline-none focus:border-foreground">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <button onClick={() => openModal()} className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background text-sm font-medium uppercase tracking-widest rounded-sm hover:opacity-90 transition-opacity">
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       <div className="bg-background rounded-sm border border-card-border overflow-hidden">
