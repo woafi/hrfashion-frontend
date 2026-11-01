@@ -5,7 +5,7 @@ import { uploadImage } from "@/lib/upload";
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, X, Loader2, Upload, ImageIcon } from "lucide-react";
+import { Pencil, Trash2, Plus, X, Loader2, Upload, ImageIcon, Search } from "lucide-react";
 import { getToken } from "@/lib/auth-client";
 import { fetchProducts, createProduct, updateProduct, deleteProduct, type Product } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -26,15 +26,17 @@ export default function AdminProductsPage() {
   const [sizesRaw, setSizesRaw] = useState("");
   const [colorsRaw, setColorsRaw] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const productParams = useMemo(() => {
     const params = new URLSearchParams({ limit: "200", sortBy, sortOrder });
+    if (search.trim()) params.set("search", search.trim());
     if (categoryFilter) params.set("category", categoryFilter);
     return params.toString();
-  }, [categoryFilter, sortBy, sortOrder]);
+  }, [categoryFilter, search, sortBy, sortOrder]);
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.admin.products(productParams),
@@ -132,6 +134,17 @@ export default function AdminProductsPage() {
           <p className="text-muted text-sm">{data?.total ?? 0} total products</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products..."
+              aria-label="Search products"
+              className="w-48 pl-9 pr-3 py-2.5 bg-card border border-card-border rounded-sm text-sm focus:outline-none focus:border-foreground"
+            />
+          </div>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2.5 bg-card border border-card-border rounded-sm text-sm focus:outline-none focus:border-foreground">
             <option value="">All Categories</option>
             {categoryOptions.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
